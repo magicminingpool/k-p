@@ -5,24 +5,14 @@ var Website = require('./libs/website.js');
 const loggerFactory = require('./libs/logger.js');
 const logger = loggerFactory.getLogger('init.js', 'system');
 var algos = require('./stratum/algoProperties.js');
+const pool = require('stratum-pool/lib/pool.js');
 
 
 JSON.minify = JSON.minify || require("node-json-minify");
 
+var numWorkers = require('os').cpus().length;
 
 
-// var numWorkers = require('os').cpus().length;
-
-// if (cluster.isPrimary) {
-//     console.log("numworkers = ", numWorkers);
-//     for(var i = 0; i < 4; i++) {
-//         cluster.fork({
-//             workerType: 'website',
-//         });
-//     }
-// } else {
-//     console.log(cluster.workerType);
-// }
 
 var portalConfig = JSON.parse(JSON.minify(fs.readFileSync("config.json", {encoding: 'utf8'})));
 var poolConfigs;
@@ -95,36 +85,25 @@ var buildPoolConfigs = function () {
 	});
 	return configs;
 };
-
-// if (cluster.isWorker) {
-//     switch (process.env.workerType) {
-//         case 'website':
-// 		new Website();
-// 		break;
-//     }
-// }
-// //console.log(cluster.workers);
-
-var startWebsite = function () {
-	if (!portalConfig.website.enabled) return;
+poolConfigs = buildPoolConfigs();
+if (cluster.isMaster) {
 	var worker = cluster.fork({
-		workerType: 'website',
-		pools: JSON.stringify(poolConfigs),
-		portalConfig: JSON.stringify(portalConfig)
+		workerType: 'website'
 	});
 	worker.on('exit', function (code, signal) {
-		logger.error('Master', 'Website', 'Website process died, spawning replacement...');
-		setTimeout(function () {
-			startWebsite(portalConfig, poolConfigs);
-		}, 2000);
+		console.log('Exit Website');
 	});
-};
 
-(function init() {
-    poolConfigs = buildPoolConfigs();
-    console.log(poolConfigs);
-	// setTimeout(function() {
-	// 	startWebsite();
-	// }, 2000);
-})();
+}
+
+if (cluster.isWorker) {
+
+    switch (process.env.workerType) {
+        case 'website':
+			new Website(JSON.stringify(portalConfig), JSON.stringify(poolConfigs) );
+			break;
+		
+    }
+}
+
 
